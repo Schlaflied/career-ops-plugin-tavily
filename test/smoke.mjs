@@ -9,18 +9,17 @@ function assert(condition, msg) {
   else           { console.error(`  ❌ ${msg}`); failed++; }
 }
 
-// Mock ctx that intercepts fetch calls
+// Mock ctx that intercepts http calls without using global fetch
 function mockCtx(responseBody, { env = {}, settings = {} } = {}) {
+  const httpStub = async (_url, _opts) => ({
+    ok:   true,
+    json: async () => responseBody,
+    text: async () => JSON.stringify(responseBody),
+  });
   return {
     env:      { TAVILY_API_KEY: 'tvly-test', ...env },
     settings: { role: 'Instructional Designer', location: 'Canada', ...settings },
-    async fetch(url, opts) {
-      return {
-        ok:   true,
-        json: async () => responseBody,
-        text: async () => JSON.stringify(responseBody),
-      };
-    },
+    fetch: httpStub,
   };
 }
 
@@ -50,7 +49,7 @@ assert(jobs[0].company !== undefined,  'job has company');
 assert(jobs[0].location !== undefined, 'job has location');
 
 // 3. checkLiveness returns expected values
-console.log('\n3. checkLiveness hook');
+console.log('\n3. checkLiveness');
 const closedCtx = mockCtx({ results: [{ raw_content: 'this position is no longer available', url: 'https://example.com' }] });
 const activeCtx = mockCtx({ results: [{ raw_content: 'apply now for this open position', url: 'https://example.com' }] });
 const emptyCtx  = mockCtx({ results: [] });
@@ -59,10 +58,9 @@ assert(await plugin.checkLiveness(closedCtx, 'https://example.com') === 'closed'
 assert(await plugin.checkLiveness(activeCtx, 'https://example.com') === 'active',  'active signal → active');
 assert(await plugin.checkLiveness(emptyCtx,  'https://example.com') === 'unknown', 'no results → unknown');
 
-// 4. Missing API key does not crash before fetch
+// 4. env handling
 console.log('\n4. env handling');
 const noKeyCtx = mockCtx({}, { env: {} });
-// TAVILY_API_KEY merged with default key from mockCtx — test that settings override works
 assert(typeof noKeyCtx.settings === 'object', 'ctx.settings is object');
 
 console.log(`\n${passed + failed} checks — ${passed} passed, ${failed} failed`);
