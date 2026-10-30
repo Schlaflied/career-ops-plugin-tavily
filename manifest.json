@@ -1,10 +1,11 @@
 {
   "id": "tavily",
   "name": "career-ops-plugin-tavily",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "apiVersion": 1,
   "description": "Tavily search/extract for job scanning, liveness checks, and company research — supplements ATS API scanning with web search.",
   "hooks": ["search"],
+  "jobPostings": true,
   "requiredEnv": ["TAVILY_API_KEY"],
   "allowedHosts": ["api.tavily.com"],
   "skill": "skill.md",

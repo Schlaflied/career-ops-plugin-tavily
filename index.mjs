@@ -79,11 +79,12 @@ function extractLocation(text) {
 }
 
 export default {
-  async search(ctx) {
-    const role     = ctx.settings?.role     || 'Instructional Designer';
-    const location = ctx.settings?.location || 'Canada';
-    const query = `"${role}" jobs site:linkedin.com OR site:greenhouse.io OR site:lever.co OR site:ashbyhq.com ${location}`;
-    const data  = await tavilySearch(ctx, query, { maxResults: ctx.settings?.maxResults || 10 });
+  async search(query, ctx) {
+    const suppliedQuery = typeof query === 'string' ? query.trim() : '';
+    const role = typeof ctx.settings?.role === 'string' ? ctx.settings.role.trim() : '';
+    const location = typeof ctx.settings?.location === 'string' ? ctx.settings.location.trim() : '';
+    const searchText = suppliedQuery || [role, location, 'jobs'].filter(Boolean).join(' ');
+    const data = await tavilySearch(ctx, searchText, { maxResults: ctx.settings?.maxResults || 10 });
     return parseJobs(data.results);
   },
 

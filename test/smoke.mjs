@@ -11,15 +11,20 @@ function assert(condition, msg) {
 
 // Mock ctx that intercepts http calls without using global fetch
 function mockCtx(responseBody, { env = {}, settings = {} } = {}) {
-  const httpStub = async (_url, _opts) => ({
-    ok:   true,
-    json: async () => responseBody,
-    text: async () => JSON.stringify(responseBody),
-  });
+  const calls = [];
+  const httpStub = async (url, opts) => {
+    calls.push({ url, opts });
+    return {
+      ok:   true,
+      json: async () => responseBody,
+      text: async () => JSON.stringify(responseBody),
+    };
+  };
   return {
     env:      { TAVILY_API_KEY: 'tvly-test', ...env },
-    settings: { role: 'Instructional Designer', location: 'Canada', ...settings },
+    settings: { ...settings },
     fetch: httpStub,
+    calls,
   };
 }
 
@@ -40,13 +45,22 @@ const fakeSearchResponse = {
   ],
 };
 const ctx = mockCtx(fakeSearchResponse);
-const jobs = await plugin.search(ctx);
+const jobs = await plugin.search('senior search engineer', ctx);
 assert(Array.isArray(jobs),            'returns array');
 assert(jobs.length === 2,              'filters out entries with no url (got ' + jobs.length + ')');
 assert(jobs[0].title  !== undefined,   'job has title');
 assert(jobs[0].url    !== undefined,   'job has url');
 assert(jobs[0].company !== undefined,  'job has company');
 assert(jobs[0].location !== undefined, 'job has location');
+assert(JSON.parse(ctx.calls[0].opts.body).query === 'senior search engineer', 'uses the engine-supplied query');
+
+const fallbackCtx = mockCtx(fakeSearchResponse, { settings: { role: 'Learning Designer', location: 'Remote' } });
+await plugin.search('', fallbackCtx);
+assert(JSON.parse(fallbackCtx.calls[0].opts.body).query === 'Learning Designer Remote jobs', 'falls back to configured role and location');
+
+const neutralCtx = mockCtx(fakeSearchResponse);
+await plugin.search('', neutralCtx);
+assert(JSON.parse(neutralCtx.calls[0].opts.body).query === 'jobs', 'uses a neutral fallback when settings are empty');
 
 // 3. checkLiveness returns expected values
 console.log('\n3. checkLiveness');
