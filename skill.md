@@ -1,6 +1,6 @@
 # career-ops-plugin-tavily
 
-Tavily search/extract for career-ops — supplements ATS API scanning with web search, liveness checks, and company research.
+Tavily web search for career-ops — supplements ATS API scanning with web search results.
 
 ## Setup
 

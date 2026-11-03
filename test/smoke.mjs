@@ -62,15 +62,23 @@ const neutralCtx = mockCtx(fakeSearchResponse);
 await plugin.search('', neutralCtx);
 assert(JSON.parse(neutralCtx.calls[0].opts.body).query === 'jobs', 'uses a neutral fallback when settings are empty');
 
-// 3. checkLiveness returns expected values
-console.log('\n3. checkLiveness');
-const closedCtx = mockCtx({ results: [{ raw_content: 'this position is no longer available', url: 'https://example.com' }] });
-const activeCtx = mockCtx({ results: [{ raw_content: 'apply now for this open position', url: 'https://example.com' }] });
-const emptyCtx  = mockCtx({ results: [] });
-
-assert(await plugin.checkLiveness(closedCtx, 'https://example.com') === 'closed',  'closed signal → closed');
-assert(await plugin.checkLiveness(activeCtx, 'https://example.com') === 'active',  'active signal → active');
-assert(await plugin.checkLiveness(emptyCtx,  'https://example.com') === 'unknown', 'no results → unknown');
+// 3. regression: company, location, and hook surface (reported on #1344)
+console.log('\n3. company / location / hook surface');
+const ghCtx = mockCtx({ results: [
+  { title: 'Engineer at Postman', url: 'https://job-boards.greenhouse.io/postman/jobs/123', content: 'Location: Bengaluru, India' },
+  { title: 'Engineer at Acme',    url: 'https://boards.greenhouse.io/acme/jobs/9',          content: 'Toronto, ON hybrid' },
+  { title: 'Engineer at Gamma',   url: 'https://example.com/gamma',                         content: 'Based in Berlin, Germany' },
+  { title: 'Engineer at Beta',    url: 'https://jobs.lever.co/beta/abc',                    content: 'Remote Canada' },
+] });
+const gh = await plugin.search('engineer', ghCtx);
+assert(gh[0].company === 'postman', 'Greenhouse job-boards host -> company from first path segment');
+assert(gh[1].company === 'acme',    'Greenhouse boards host -> company from first path segment');
+assert(gh[3].company === 'beta',    'Lever company still read from the path');
+assert(gh[0].location === 'Bengaluru, India', 'labelled non-Canadian location is kept');
+assert(gh[1].location === 'Toronto, ON',      'City, province code is kept');
+assert(gh[2].location === 'Berlin, Germany',  'City, Country is kept');
+assert(gh[3].location === 'Remote',           'Remote still recognised');
+assert(Object.keys(plugin).join() === 'search', 'only the declared search hook is exported');
 
 // 4. env handling
 console.log('\n4. env handling');

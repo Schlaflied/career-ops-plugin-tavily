@@ -2,24 +2,10 @@
 // Author: Schlaflied · https://github.com/Schlaflied
 // License: MIT · https://github.com/Schlaflied/career-ops-plugin-tavily
 //
-// Tavily search/extract for job scanning, liveness checks, and company research.
+// Tavily web search for job scanning (the `search` hook).
 // Reach the network only through ctx.fetch (engine enforces allowedHosts).
 
 const TAVILY_SEARCH_URL  = 'https://api.tavily.com/search';
-const TAVILY_EXTRACT_URL = 'https://api.tavily.com/extract';
-
-const CLOSED_SIGNALS = [
-  'no longer accepting', 'position has been filled', 'job has expired',
-  'posting has closed', 'this job is closed', 'application period has ended',
-  'we are not currently hiring', 'position is no longer available',
-  '404', 'page not found', 'job not found',
-];
-
-const ACTIVE_SIGNALS = [
-  'apply now', 'apply for this job', 'submit your application',
-  'we are hiring', 'join our team', 'open position',
-  'job description', 'responsibilities', 'qualifications',
-];
 
 async function tavilySearch(ctx, query, opts = {}) {
   const body = {
@@ -42,17 +28,6 @@ async function tavilySearch(ctx, query, opts = {}) {
   return res.json();
 }
 
-async function tavilyExtract(ctx, urls) {
-  const list = Array.isArray(urls) ? urls : [urls];
-  const res = await ctx.fetch(TAVILY_EXTRACT_URL, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ api_key: ctx.env.TAVILY_API_KEY, urls: list }),
-  });
-  if (!res.ok) throw new Error(`Tavily extract ${res.status}: ${await res.text()}`);
-  return res.json();
-}
-
 function parseJobs(results) {
   return (results || []).map(r => ({
     title:    r.title   || '',
@@ -65,7 +40,7 @@ function parseJobs(results) {
 function extractCompany(url, title) {
   try {
     const host = new URL(url).hostname.replace('www.', '');
-    if (host.includes('greenhouse.io')) return host.split('.')[0];
+    if (host.includes('greenhouse.io')) return url.split('/')[3] || '';
     if (host.includes('lever.co'))      return url.split('/')[3] || '';
     if (host.includes('ashbyhq.com'))   return url.split('/')[3] || '';
   } catch {}
@@ -73,7 +48,14 @@ function extractCompany(url, title) {
   return m ? m[1].trim() : '';
 }
 
+// "City, XX" (province/state code) or "City, Country"; country list is a convenience, not exhaustive.
+const CITY_REGION_RE = /\b([A-Z][\p{L}.'-]+(?: [A-Z][\p{L}.'-]+){0,2}),\s*([A-Z]{2}|India|Canada|United States|USA|United Kingdom|UK|Germany|France|Australia|Singapore|Ireland|Netherlands|Brazil|Mexico|Spain|Poland|Japan)\b/u;
+
 function extractLocation(text) {
+  const labelled = text.match(/\blocation:\s*([^\n|;]{2,60})/i);
+  if (labelled) return labelled[1].trim();
+  const cityRegion = text.match(CITY_REGION_RE);
+  if (cityRegion) return `${cityRegion[1]}, ${cityRegion[2]}`;
   const m = text.match(/\b(Toronto|Vancouver|Montreal|Ottawa|Calgary|Remote|Canada|Ontario|BC|Alberta)\b/i);
   return m ? m[1] : '';
 }
@@ -86,27 +68,5 @@ export default {
     const searchText = suppliedQuery || [role, location, 'jobs'].filter(Boolean).join(' ');
     const data = await tavilySearch(ctx, searchText, { maxResults: ctx.settings?.maxResults || 10 });
     return parseJobs(data.results);
-  },
-
-  async checkLiveness(ctx, url) {
-    try {
-      const result = await tavilyExtract(ctx, url);
-      const page   = result.results?.[0];
-      if (!page) return 'unknown';
-      const text = (page.raw_content || page.content || '').toLowerCase();
-      if (!text) return 'unknown';
-      if (CLOSED_SIGNALS.some(s => text.includes(s))) return 'closed';
-      if (ACTIVE_SIGNALS.some(s => text.includes(s)))  return 'active';
-      return 'unknown';
-    } catch {
-      return 'unknown';
-    }
-  },
-
-  async researchCompany(ctx, company, role = '') {
-    const query = role
-      ? `"${company}" ${role} company culture glassdoor reviews`
-      : `"${company}" company overview culture hiring`;
-    return tavilySearch(ctx, query, { searchDepth: 'advanced', maxResults: 8, includeAnswer: true });
   },
 };

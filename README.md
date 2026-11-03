@@ -1,14 +1,14 @@
 # career-ops-plugin-tavily
 
-A [career-ops](https://github.com/santifer/career-ops) community plugin — Tavily search/extract for job scanning, liveness checks, and company research.
+A [career-ops](https://github.com/santifer/career-ops) community plugin — Tavily web search for job scanning.
 
 ## What it does
 
 Supplements career-ops' zero-token ATS API scanning with web search via the [Tavily API](https://tavily.com):
 
 - **`search` hook** — finds job postings across LinkedIn, Greenhouse, Lever, and Ashby via web search; results feed into the career-ops pipeline exactly like ATS scanner results
-- **`checkLiveness`** — fallback liveness check for non-ATS job postings (used by `check-liveness.mjs` when the ATS API is inconclusive)
-- **`researchCompany`** — deep company research queries for the `deep` mode
+
+The plugin declares and implements one hook, `search`. Earlier versions also exported `checkLiveness` and `researchCompany`, but career-ops only calls the hooks named in the manifest (`provider`, `ingest`, `search`, `notify`, `export`), so they were never invoked; they were removed in v0.1.2 rather than advertised.
 
 ## Setup
 
